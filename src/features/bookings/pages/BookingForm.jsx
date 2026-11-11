@@ -132,8 +132,21 @@ function BookingForm() {
             return;
         }
 
-        if (!resource || attendeeCount > resource.capacity) {
-            setError('Attendee count exceeds resource capacity.');
+        const requestedAttendees = Number(attendeeCount);
+
+        if (
+            !Number.isInteger(requestedAttendees) ||
+            requestedAttendees < 1
+        ) {
+            setError('Please enter a valid attendee count of at least 1.');
+            return;
+        }
+
+        if (
+            resource.capacity != null &&
+            requestedAttendees > resource.capacity
+        ) {
+            setError(`Maximum capacity for this resource is ${resource.capacity}.`);
             return;
         }
 
@@ -147,7 +160,7 @@ function BookingForm() {
                 startTime: selectedSlot.startTime,
                 endTime: selectedSlot.endTime,
                 purpose: purpose.trim(),
-                attendeeCount: Number(attendeeCount),
+                attendeeCount: requestedAttendees,
             });
 
             setSuccess(booking);
@@ -193,6 +206,9 @@ function BookingForm() {
                     <strong>
                         {formatTime(success.startTime)} – {formatTime(success.endTime)}
                     </strong>
+
+                    <span>Attendees</span>
+                    <strong>{success.attendeeCount}</strong>
 
                     <span>Status</span>
                     <strong>{success.status}</strong>

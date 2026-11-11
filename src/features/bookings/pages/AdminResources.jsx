@@ -1,7 +1,7 @@
-
 import { useEffect, useMemo, useState } from 'react';
 import {
   getResources,
+  getResourceOptions,
   createResource,
   updateResource,
   updateResourceStatus,
@@ -9,15 +9,19 @@ import {
 
 const emptyForm = {
   name: '',
-  type: 'Laboratory',
-  building: '',
-  location: '',
+  resourceTypeId: '',
+  roomId: '',
   capacity: '',
   status: 'AVAILABLE',
-  facilities: '',
 };
 
+// temporarily constant :)
+const COLLEGE_ID = '10000000-0000-0000-0000-000000000001';
+
 function AdminResources() {
+  const [resourceTypes, setResourceTypes] = useState([]);
+  const [rooms, setRooms] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [resources, setResources] = useState([]);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
@@ -28,19 +32,39 @@ function AdminResources() {
   const [error, setError] = useState('');
 
   async function loadResources() {
-    const data = await getResources();
-    setResources([...data]);
+    try {
+      setLoading(true);
+      const data = await getResources();
+      setResources(data);
+    } catch (err) {
+      console.error('Failed to load resources:', err);
+      setError('Unable to load resources.');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function loadOptions() {
+    try {
+      const data = await getResourceOptions(COLLEGE_ID);
+      setResourceTypes(data.resourceTypes);
+      setRooms(data.rooms);
+    } catch (err) {
+      console.error('Failed to load resource options:', err);
+      setError('Unable to load resource types and rooms.');
+    }
   }
 
   useEffect(() => {
     loadResources();
+    loadOptions();
   }, []);
 
   const filteredResources = useMemo(() => {
     return resources.filter((resource) => {
       const matchesSearch =
         resource.name.toLowerCase().includes(search.toLowerCase()) ||
-        resource.building.toLowerCase().includes(search.toLowerCase()) ||
+        (resource.building || '').toLowerCase().includes(search.toLowerCase()) ||
         resource.id.toLowerCase().includes(search.toLowerCase());
 
       const matchesStatus =
@@ -68,10 +92,15 @@ function AdminResources() {
 
   function openEditForm(resource) {
     setEditingId(resource.id);
+
     setForm({
-      ...resource,
-      facilities: resource.facilities.join(', '),
+      name: resource.name || '',
+      resourceTypeId: resource.resourceTypeId || '',
+      roomId: resource.roomId || '',
+      capacity: resource.capacity ?? '',
+      status: resource.status,
     });
+
     setError('');
     setShowForm(true);
   }
@@ -87,26 +116,28 @@ function AdminResources() {
 
     if (
       !form.name.trim() ||
-      !form.building.trim() ||
-      !form.location.trim() ||
+      !form.resourceTypeId ||
       !form.capacity ||
       Number(form.capacity) < 1
     ) {
-      setError('Please complete all fields with valid values.');
+      setError('Please complete all required fields.');
       return;
     }
 
     const resourceData = {
+      collegeId: COLLEGE_ID,
+      resourceTypeId: form.resourceTypeId,
+      roomId: form.roomId || null,
       name: form.name.trim(),
-      type: form.type,
-      building: form.building.trim(),
-      location: form.location.trim(),
+      code: editingId
+        ? resources.find((r) => r.id === editingId)?.code || null
+        : null,
+      description: editingId
+        ? resources.find((r) => r.id === editingId)?.description || null
+        : '',
       capacity: Number(form.capacity),
-      status: form.status,
-      facilities: form.facilities
-        .split(',')
-        .map((item) => item.trim())
-        .filter(Boolean),
+      bookable: true,
+      active: form.status === 'AVAILABLE',
     };
 
     try {
@@ -121,16 +152,25 @@ function AdminResources() {
       setForm(emptyForm);
       setEditingId(null);
     } catch (err) {
-      setError(err.message || 'Something went wrong.');
+      console.error('Resource save failed:', err);
+      setError(
+        err.response?.data?.detail ||
+        err.response?.data?.message ||
+        'Unable to save resource.'
+      );
     }
   }
 
   async function handleStatusChange(resource) {
-    const nextStatus =
-      resource.status === 'AVAILABLE' ? 'UNAVAILABLE' : 'AVAILABLE';
+    try {
+      const nextActive = !resource.active;
 
-    await updateResourceStatus(resource.id, nextStatus);
-    await loadResources();
+      await updateResourceStatus(resource.id, nextActive);
+      await loadResources();
+    } catch (err) {
+      console.error('Status update failed:', err);
+      setError('Unable to update resource status.');
+    }
   }
 
   return (
@@ -232,11 +272,10 @@ function AdminResources() {
                   <td>{resource.capacity}</td>
                   <td>
                     <span
-                      className={`admin-status ${
-                        resource.status === 'AVAILABLE'
-                          ? 'is-available'
-                          : 'is-unavailable'
-                      }`}
+                      className={`admin-status ${resource.status === 'AVAILABLE'
+                        ? 'is-available'
+                        : 'is-unavailable'
+                        }`}
                     >
                       {resource.status}
                     </span>
@@ -301,35 +340,38 @@ function AdminResources() {
 
               <label>
                 Resource Type
-                <select name="type" value={form.type} onChange={handleChange}>
-                  <option>Laboratory</option>
-                  <option>Seminar Hall</option>
-                  <option>Meeting Room</option>
-                  <option>Classroom</option>
-                  <option>Equipment</option>
+                <select
+                  name="resourceTypeId"
+                  value={form.resourceTypeId}
+                  onChange={handleChange}
+                  required
+                >
+                  <option value="">Select resource type</option>
+
+                  {resourceTypes.map((type) => (
+                    <option key={type.id} value={type.id}>
+                      {type.name}
+                    </option>
+                  ))}
                 </select>
               </label>
 
               <div className="admin-form-row">
                 <label>
-                  Building
-                  <input
-                    name="building"
-                    value={form.building}
+                  Room / Location
+                  <select
+                    name="roomId"
+                    value={form.roomId}
                     onChange={handleChange}
-                    placeholder="Block A"
-                    required
-                  />
-                </label>
-                <label>
-                  Floor / Location
-                  <input
-                    name="location"
-                    value={form.location}
-                    onChange={handleChange}
-                    placeholder="First Floor"
-                    required
-                  />
+                  >
+                    <option value="">Standalone resource / No room</option>
+
+                    {rooms.map((room) => (
+                      <option key={room.id} value={room.id}>
+                        {room.name} — {room.building}
+                      </option>
+                    ))}
+                  </select>
                 </label>
               </div>
 

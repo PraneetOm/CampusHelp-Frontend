@@ -1,4 +1,3 @@
-
 import { useEffect, useMemo, useState } from 'react';
 import {
   getAllBookings,
@@ -14,6 +13,7 @@ function AdminBookings() {
 
   async function loadBookings() {
     setLoading(true);
+    setError('');
 
     try {
       const data = await getAllBookings();
@@ -46,9 +46,9 @@ function AdminBookings() {
       const query = search.toLowerCase();
 
       const matchesSearch =
-        booking.id.toLowerCase().includes(query) ||
-        booking.resourceName.toLowerCase().includes(query) ||
-        booking.purpose.toLowerCase().includes(query);
+        String(booking.id ?? '').toLowerCase().includes(query) ||
+        String(booking.resourceName ?? '').toLowerCase().includes(query) ||
+        String(booking.purpose ?? '').toLowerCase().includes(query);
 
       const matchesStatus =
         statusFilter === 'ALL' ||
@@ -169,7 +169,7 @@ function AdminBookings() {
 
                     <td>
                       <strong>{booking.resourceName}</strong>
-                      <small>{booking.resourceType}</small>
+                      <small>{booking.resourceType ?? '—'}</small>
                     </td>
 
                     <td>
@@ -181,7 +181,7 @@ function AdminBookings() {
                     </td>
 
                     <td>{booking.purpose}</td>
-                    <td>{booking.attendeeCount}</td>
+                    <td>{booking.attendeeCount ?? '—'}</td>
 
                     <td>
                       <span
