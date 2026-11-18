@@ -1,14 +1,26 @@
-import axios from 'axios';
+import axios from "axios";
+import { supabase } from "../../lib/supabase";
 
 const apiClient = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080',
+  baseURL: (
+    import.meta.env.VITE_API_BASE_URL || "http://localhost:8080"
+  ).replace(/\/$/, ""),
   headers: {
-    'Content-Type': 'application/json',
+    "Content-Type": "application/json",
   },
   timeout: 15000,
 });
 
-// Authentication token will be attached here
-// when we integrate Supabase Auth.
+apiClient.interceptors.request.use(async (config) => {
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+
+  if (session?.access_token) {
+    config.headers.Authorization = `Bearer ${session.access_token}`;
+  }
+
+  return config;
+});
 
 export default apiClient;

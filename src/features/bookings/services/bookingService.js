@@ -20,80 +20,55 @@ function isOverlapping(startA, endA, startB, endB) {
   return startA < endB && startB < endA;
 }
 
-export async function getAvailableSlots(resourceId, date) {
-  const slots = await Promise.all(
-    timeSlots.map(async ([startTime, endTime]) => {
-      try {
-        const response = await apiClient.get(
-          `/api/resources/${resourceId}/availability`,
-          {
-            params: {
-              startTime: `${date}T${startTime}`,
-              endTime: `${date}T${endTime}`,
-            },
-          },
-        );
 
-        return {
-          startTime,
-          endTime,
-          available: response.data.available,
-        };
-      } catch (error) {
-        console.error(
-          `Availability check failed for ${startTime}-${endTime}:`,
-          error,
-        );
-
-        throw error;
-      }
-    }),
-  );
-
-  return slots;
-}
 
 export async function getResourceAvailability(resourceId, from, to) {
-  // Future Spring Boot integration:
-  // const response = await apiClient.get(
-  //   `/api/resources/${resourceId}/availability`,
-  //   { params: { from, to } }
-  // );
-  // return response.data;
+  const response = await apiClient.get(
+    `/api/resources/${resourceId}/availability/week`,
+    {
+      params: {
+        startDate: from,
+      },
+    }
+  );
 
-  const result = {};
-  const current = new Date(`${from}T12:00:00`);
-  const last = new Date(`${to}T12:00:00`);
+  const availability = {};
 
-  while (current <= last) {
-    const date = [
-      current.getFullYear(),
-      String(current.getMonth() + 1).padStart(2, "0"),
-      String(current.getDate()).padStart(2, "0"),
-    ].join("-");
-
-    result[date] = await getAvailableSlots(resourceId, date);
-    current.setDate(current.getDate() + 1);
+  for (const day of response.data.days || []) {
+    availability[day.date] = (day.slots || []).map((slot) => ({
+      startTime: slot.startTime,
+      endTime: slot.endTime,
+      available: slot.available,
+    }));
   }
 
-  return result;
+  return availability;
 }
 
-const COLLEGE_ID = "10000000-0000-0000-0000-000000000001";
-const DEMO_USER_ID = "5ab79668-ea05-4429-9dfb-e4139be1980b";
+export async function getAvailableSlots(resourceId, date) {
+  const availability = await getResourceAvailability(
+    resourceId,
+    date,
+    date
+  );
+
+  return availability[date] || [];
+}
+
 
 export async function createBooking(bookingData) {
   const payload = {
-    collegeId: COLLEGE_ID,
     resourceId: bookingData.resourceId,
-    bookedBy: DEMO_USER_ID,
     purpose: bookingData.purpose,
     attendeeCount: Number(bookingData.attendeeCount),
     startTime: `${bookingData.bookingDate}T${bookingData.startTime}`,
     endTime: `${bookingData.bookingDate}T${bookingData.endTime}`,
   };
 
-  const response = await apiClient.post("/api/resources/bookings", payload);
+  const response = await apiClient.post(
+    "/api/resources/bookings",
+    payload
+  );
 
   const savedBooking = response.data;
 
@@ -107,11 +82,7 @@ export async function createBooking(bookingData) {
 
 
 export async function getMyBookings() {
-  const response = await apiClient.get('/api/resources/bookings', {
-    params: {
-      userId: DEMO_USER_ID,
-    },
-  });
+  const response = await apiClient.get("/api/resources/bookings");
 
   return response.data.map((booking) => ({
     id: booking.id,
@@ -141,13 +112,7 @@ export async function getBookingById(bookingId) {
 
 export async function cancelBooking(bookingId) {
   const response = await apiClient.patch(
-    `/api/resources/bookings/${bookingId}/cancel`,
-    null,
-    {
-      params: {
-        userId: DEMO_USER_ID,
-      },
-    }
+    `/api/resources/bookings/${bookingId}/cancel`
   );
 
   return response.data;
@@ -155,80 +120,59 @@ export async function cancelBooking(bookingId) {
 
 
 // Get all bookings for Admin
-export async function getAllBookings() {
-  const response = await apiClient.get('/api/resources/bookings/all', {
-    params: {
-      collegeId: COLLEGE_ID,
-    },
-  });
+// export async function getAllBookings() {
+//   const response = await apiClient.get('/api/resources/bookings/all', {
+//     params: {
+//       collegeId: COLLEGE_ID,
+//     },
+//   });
 
-  return response.data.map((booking) => ({
-    id: booking.id,
-    resourceId: booking.resourceId,
-    resourceName: booking.resourceName,
-    bookedBy: booking.bookedBy,
-    requesterName: booking.requesterName,
-    requesterEmail: booking.requesterEmail,
-    purpose: booking.purpose,
+//   return response.data.map((booking) => ({
+//     id: booking.id,
+//     resourceId: booking.resourceId,
+//     resourceName: booking.resourceName,
+//     bookedBy: booking.bookedBy,
+//     requesterName: booking.requesterName,
+//     requesterEmail: booking.requesterEmail,
+//     purpose: booking.purpose,
 
-    bookingDate: booking.startTime.slice(0, 10),
-    startTime: booking.startTime.slice(11, 19),
-    endTime: booking.endTime.slice(11, 19),
+//     bookingDate: booking.startTime.slice(0, 10),
+//     startTime: booking.startTime.slice(11, 19),
+//     endTime: booking.endTime.slice(11, 19),
 
-    status: booking.status,
-    createdAt: booking.createdAt,
-    attendeeCount: booking.attendeeCount,
+//     status: booking.status,
+//     createdAt: booking.createdAt,
+//     attendeeCount: booking.attendeeCount,
 
-    // These fields are not currently stored in the backend schema.
-    resourceType: null,
-    location: null,
-  }));
-}
+//     // These fields are not currently stored in the backend schema.
+//     resourceType: null,
+//     location: null,
+//   }));
+// }
+
+export const getAllBookings = async () => {
+  const response = await apiClient.get('/api/resources/bookings/all');
+  return response.data;
+};
 
 
 // Approve or reject a booking
-export async function updateBookingStatus(bookingId, newStatus) {
-  const booking = mockBookings.find((item) => item.id === bookingId);
-
-  if (!booking) {
-    throw new Error("Booking not found.");
+export const updateBookingStatus = async (
+  bookingId,
+  status,
+  approvalNotes = ''
+) => {
+  if (!['CONFIRMED', 'REJECTED'].includes(status)) {
+    throw new Error('Invalid booking review status');
   }
 
-  if (booking.status !== "PENDING") {
-    throw new Error("Only pending bookings can be reviewed.");
-  }
-
-  if (!["CONFIRMED", "REJECTED"].includes(newStatus)) {
-    throw new Error("Invalid booking status.");
-  }
-
-  // Check for conflicts before approving
-  if (newStatus === "CONFIRMED") {
-    const hasConflict = mockBookings.some((other) => {
-      if (
-        other.id === booking.id ||
-        other.resourceId !== booking.resourceId ||
-        other.bookingDate !== booking.bookingDate ||
-        other.status !== "CONFIRMED"
-      ) {
-        return false;
-      }
-
-      return isOverlapping(
-        booking.startTime,
-        booking.endTime,
-        other.startTime,
-        other.endTime,
-      );
-    });
-
-    if (hasConflict) {
-      throw new Error(
-        "This resource already has a confirmed booking during that time.",
-      );
+  const response = await apiClient.patch(
+    `/api/resources/bookings/${bookingId}/review`,
+    {
+      approve: status === 'CONFIRMED',
+      approvalNotes
     }
-  }
+  );
 
-  booking.status = newStatus;
-  return booking;
-}
+  return response.data;
+};

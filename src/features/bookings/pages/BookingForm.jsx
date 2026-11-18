@@ -91,6 +91,14 @@ function BookingForm() {
                 if (active) {
                     setSlots(data);
 
+                    const failedSlot = data.find((slot) => slot.checkFailed);
+
+                    setError(
+                        failedSlot
+                            ? `Some availability checks failed: ${failedSlot.error}`
+                            : ""
+                    );
+
                     const requestedSlot =
                         requestedStart && requestedEnd
                             ? data.find(
@@ -287,8 +295,9 @@ function BookingForm() {
                                             <Clock3 size={15} />
                                             <span>
                                                 {formatTime(slot.startTime)}
-                                                {' – '}
+                                                {' - '}
                                                 {formatTime(slot.endTime)}
+                                                {slot.checkFailed ? ' (Check failed)' : ''}
                                             </span>
                                         </button>
                                     );
