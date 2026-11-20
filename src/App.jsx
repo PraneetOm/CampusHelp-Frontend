@@ -22,6 +22,8 @@ import BookingDetails from "./features/bookings/pages/BookingDetails";
 import AdminResources from "./features/bookings/pages/AdminResources";
 import AdminBookings from "./features/bookings/pages/AdminBookings";
 
+import TicketDashboard from "./features/tickets/pages/TicketDashboard";
+
 function ProtectedApplication() {
   return (
     <ProtectedRoute>
@@ -66,6 +68,24 @@ function ProtectedApplication() {
           />
 
           <Route path="*" element={<Navigate to="/" replace />} />
+
+          <Route
+            path="/tickets"
+            element={
+              <RoleBasedRoute allowedRoles={["STUDENT", "STAFF"]}>
+                <TicketDashboard />
+              </RoleBasedRoute>
+            }
+          />
+
+          <Route
+            path="/admin/tickets"
+            element={
+              <RoleBasedRoute allowedRoles={["ADMIN"]}>
+                <TicketDashboard />
+              </RoleBasedRoute>
+            }
+          />
         </Routes>
       </AppLayout>
     </ProtectedRoute>

@@ -2550,3 +2550,22 @@ form label { display: block; font-size: 13px; font-weight: 600; margin: 0 0 8px;
   .form-footer { font-size: 10px; }
   .signed-in-card { padding: 25px 20px; }
 }
+
+.sidebar-logout {
+  padding: 12px 16px;
+  border-top: 1px solid var(--border-color, #e5e7eb);
+}
+
+.logout-button {
+  width: 100%;
+  border: none;
+  background: transparent;
+  color: #dc2626;
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+}
+
+.logout-button:hover {
+  background: rgba(220, 38, 38, 0.08);
+}

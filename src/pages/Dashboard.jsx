@@ -12,6 +12,13 @@ import {
   Users,
 } from "lucide-react";
 
+import {
+  getTickets,
+  getTicketStatuses,
+} from "../features/tickets/services/ticketApi";
+
+import RecentTicketsPanel from "../features/tickets/components/RecentTicketsPanel";
+
 import useAuth from "../hooks/useAuth";
 import { getMyBookings, getAllBookings } from "../features/bookings/services/bookingService";
 import { getResources } from "../features/bookings/services/resourceService";
@@ -25,6 +32,9 @@ function Dashboard() {
 
   const [bookings, setBookings] = useState([]);
   const [resources, setResources] = useState([]);
+  const [tickets, setTickets] = useState([]);
+  const [ticketStatuses, setTicketStatuses] = useState([]);
+  const [ticketLoading, setTicketLoading] = useState(true);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -36,11 +46,14 @@ function Dashboard() {
         setLoading(true);
         setError("");
 
+
         if (isAdmin) {
           const [bookingData, resourceData] = await Promise.all([
             getAllBookings(),
             getResources(),
           ]);
+
+          await loadTicketOverview();
 
           if (active) {
             setBookings(bookingData);
@@ -48,6 +61,8 @@ function Dashboard() {
           }
         } else {
           const bookingData = await getMyBookings();
+
+          await loadTicketOverview();
 
           if (active) {
             setBookings(bookingData);
@@ -79,6 +94,14 @@ function Dashboard() {
     (booking) => booking.status?.toUpperCase() === "PENDING"
   );
 
+  const openTicketsCount = tickets.filter(ticket => {
+    const status = ticketStatuses.find(
+      item => item.id === ticket.statusId
+    )?.name?.toUpperCase();
+
+    return ["OPEN", "IN_PROGRESS", "REOPENED"].includes(status);
+  }).length;
+
   const confirmedBookings = bookings.filter(
     (booking) => booking.status?.toUpperCase() === "CONFIRMED"
   );
@@ -108,6 +131,37 @@ function Dashboard() {
     .sort(
       (a, b) =>
         new Date(b.createdAt || 0) - new Date(a.createdAt || 0)
+    )
+    .slice(0, 5);
+
+  const ticketStatusMap = new Map(
+    ticketStatuses.map(status => [
+      status.id,
+      status.name.toUpperCase(),
+    ])
+  );
+
+  const openTickets = tickets.filter(ticket =>
+    ["OPEN", "REOPENED"].includes(
+      ticketStatusMap.get(ticket.statusId)
+    )
+  );
+
+  const inProgressTickets = tickets.filter(ticket =>
+    ticketStatusMap.get(ticket.statusId) === "IN_PROGRESS"
+  );
+
+  const resolvedTickets = tickets.filter(ticket =>
+    ["RESOLVED", "CLOSED"].includes(
+      ticketStatusMap.get(ticket.statusId)
+    )
+  );
+
+  const recentTickets = [...tickets]
+    .sort(
+      (a, b) =>
+        new Date(b.createdAt || 0) -
+        new Date(a.createdAt || 0)
     )
     .slice(0, 5);
 
@@ -143,69 +197,91 @@ function Dashboard() {
     return status.charAt(0) + status.slice(1).toLowerCase();
   }
 
+
+  async function loadTicketOverview() {
+    try {
+      setTicketLoading(true);
+
+      const [ticketData, statusData] = await Promise.all([
+        getTickets(),
+        getTicketStatuses(),
+      ]);
+
+      setTickets(ticketData || []);
+      setTicketStatuses(statusData || []);
+    } catch (err) {
+      console.error("Ticket dashboard loading failed:", err);
+      setTickets([]);
+      setTicketStatuses([]);
+    } finally {
+      setTicketLoading(false);
+    }
+  }
+
+
   const displayName = user?.name || user?.email?.split("@")[0] || "there";
 
   const stats = isAdmin
     ? [
-        {
-          label: "Pending Requests",
-          value: pendingBookings.length,
-          note: "Awaiting admin approval",
-          icon: ClipboardList,
-          color: "gold",
-        },
-        {
-          label: "Total Bookings",
-          value: bookings.length,
-          note: "All campus requests",
-          icon: CalendarDays,
-          color: "blue",
-        },
-        {
-          label: "Confirmed",
-          value: confirmedBookings.length,
-          note: "Approved reservations",
-          icon: CheckCircle2,
-          color: "green",
-        },
-        {
-          label: "Resources",
-          value: resources.length,
-          note: "Registered campus resources",
-          icon: Building2,
-          color: "red",
-        },
-      ]
+      {
+        label: "Pending Requests",
+        value: pendingBookings.length,
+        note: "Awaiting admin approval",
+        icon: ClipboardList,
+        color: "gold",
+      },
+      {
+        label: "Total Bookings",
+        value: bookings.length,
+        note: "All campus requests",
+        icon: CalendarDays,
+        color: "blue",
+      },
+      {
+        label: "Confirmed",
+        value: confirmedBookings.length,
+        note: "Approved reservations",
+        icon: CheckCircle2,
+        color: "green",
+      },
+      {
+        label: "Resources",
+        value: resources.length,
+        note: "Registered campus resources",
+        icon: Building2,
+        color: "red",
+      },
+    ]
     : [
-        {
-          label: "Total Bookings",
-          value: bookings.length,
-          note: "Your resource requests",
-          icon: CalendarDays,
-          color: "blue",
-        },
-        {
-          label: "Upcoming Bookings",
-          value: upcomingBookings.length,
-          note: "Scheduled ahead",
-          icon: Clock3,
-          color: "gold",
-        },
-        {
-          label: "Completed",
-          value: completedBookings.length,
-          note: "Successfully completed",
-          icon: CheckCircle2,
-          color: "green",
-        },
-        {
-          label: "Open Tickets",
-          value: "—",
-          note: "Ticket integration pending",
-          icon: Users,
-          color: "red",
-        },
-      ];
+      {
+        label: "Total Bookings",
+        value: bookings.length,
+        note: "Your resource requests",
+        icon: CalendarDays,
+        color: "blue",
+      },
+      {
+        label: "Upcoming Bookings",
+        value: upcomingBookings.length,
+        note: "Scheduled ahead",
+        icon: Clock3,
+        color: "gold",
+      },
+      {
+        label: "Completed",
+        value: completedBookings.length,
+        note: "Successfully completed",
+        icon: CheckCircle2,
+        color: "green",
+      },
+      {
+        label: "Open Tickets",
+        value: openTicketsCount,
+        note: "Your active support requests",
+        icon: ClipboardList,
+        color: "red",
+      },
+    ];
 
   return (
     <div className="dashboard">
@@ -272,6 +348,7 @@ function Dashboard() {
                     {pendingBookings.length} requests awaiting your decision
                   </p>
                 </div>
+
 
                 <button
                   className="text-button"
@@ -421,9 +498,8 @@ function Dashboard() {
                     </div>
 
                     <span
-                      className={`status-badge ${
-                        booking.status?.toLowerCase() || "pending"
-                      }`}
+                      className={`status-badge ${booking.status?.toLowerCase() || "pending"
+                        }`}
                     >
                       <span />
                       {formatStatus(booking.status)}
@@ -440,6 +516,14 @@ function Dashboard() {
               View all bookings <ArrowUpRight size={15} />
             </button>
           </div>
+
+          <RecentTicketsPanel
+            tickets={tickets}
+            statuses={ticketStatuses}
+            loading={ticketLoading}
+            isAdmin={false}
+            onViewAll={() => navigate("/tickets")}
+          />
 
           <div className="content-panel quick-panel">
             <div className="panel-heading">

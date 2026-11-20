@@ -6,10 +6,11 @@ import {
   Clock3,
   GraduationCap,
   ClipboardList,
-  ShieldCheck,
+  Ticket,
+  LogOut,
 } from "lucide-react";
 
-import { NavLink } from "react-router-dom";
+import { NavLink, useNavigate } from "react-router-dom";
 import useAuth from "../../hooks/useAuth";
 
 const navigationByRole = {
@@ -26,6 +27,7 @@ const navigationByRole = {
         { label: "Book a Resource", icon: CalendarDays, to: "/resources" },
         { label: "Availability", icon: Clock3, to: "/availability" },
         { label: "My Bookings", icon: Building2, to: "/bookings" },
+        { label: "My Tickets", icon: Ticket, to: "/tickets" },
       ],
     },
   ],
@@ -43,6 +45,7 @@ const navigationByRole = {
         { label: "Book a Resource", icon: CalendarDays, to: "/resources" },
         { label: "Availability", icon: Clock3, to: "/availability" },
         { label: "My Bookings", icon: Building2, to: "/bookings" },
+        { label: "My Tickets", icon: Ticket, to: "/tickets" },
       ],
     },
   ],
@@ -54,6 +57,7 @@ const navigationByRole = {
         { label: "Dashboard", icon: LayoutDashboard, to: "/" },
         { label: "Resource Requests", icon: ClipboardList, to: "/admin/bookings" },
         { label: "Resource Management", icon: Building2, to: "/admin/resources" },
+        { label: "Ticket Management", icon: Ticket, to: "/admin/tickets" },
       ],
     },
     {
@@ -78,21 +82,26 @@ function getInitials(name) {
 }
 
 function Sidebar() {
-  const { user, role } = useAuth();
+  const { user, role, signOut } = useAuth();
+  const navigate = useNavigate();
 
   const normalizedRole = role?.toUpperCase();
-  const navigation = navigationByRole[normalizedRole] || navigationByRole.STUDENT;
+  const navigation =
+    navigationByRole[normalizedRole] || navigationByRole.STUDENT;
 
   const displayName =
-    user?.name ||
-    user?.email?.split("@")[0] ||
-    "Campus User";
+    user?.name || user?.email?.split("@")[0] || "Campus User";
 
   const displayRole = normalizedRole
     ? normalizedRole.charAt(0) + normalizedRole.slice(1).toLowerCase()
     : "Campus User";
 
   const initials = getInitials(displayName);
+
+  const handleSignOut = async () => {
+    await signOut();
+    navigate("/login", { replace: true });
+  };
 
   return (
     <aside className="sidebar">
@@ -148,6 +157,17 @@ function Sidebar() {
           <strong>{displayName}</strong>
           <span>{displayRole}</span>
         </div>
+      </div>
+
+      <div className="sidebar-logout">
+        <button
+          type="button"
+          className="nav-item logout-button"
+          onClick={handleSignOut}
+        >
+          <LogOut size={18} strokeWidth={1.8} />
+          <span>Sign Out</span>
+        </button>
       </div>
     </aside>
   );
